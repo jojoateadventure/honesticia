@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Virtoons: Honestícia</title>
+    <style>
+        /* FONTE ALTERADA PARA ARIAL */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            margin: 0;
+            overflow: hidden; 
+            touch-action: none; 
+        }
+
+        h1 { color: #d35400; margin: 15px; font-size: 28px; font-weight: bold; }
+
+        #game-container {
+            position: relative;
+            width: 350px;
+            height: 450px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 20px;
+            /* Sombra inicial suave */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            overflow: visible; /* Mudei para visible para o brilho mágico sair da caixa */
+            transition: transform 0.5s ease;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            cursor: crosshair;
+            border-radius: 20px; /* Arredonda o canvas também */
+        }
+
+        #monster-img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            opacity: 0.1; 
+            transition: opacity 1s ease;
+            z-index: 1;
+            pointer-events: none;
+            border-radius: 20px;
+        }
+
+        .dot {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background-color: #333;
+            border: 2px solid white;
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 3;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .dot.active { background-color: #27ae60; transform: scale(1.3); }
+
+        /* PAINEL DE CONTROLES */
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            max-width: 360px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .color-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: 2px solid #ddd;
+            cursor: pointer;
+        }
+        .color-btn.selected { border-color: #333; transform: scale(1.2); box-shadow: 0 0 5px rgba(0,0,0,0.3); }
+
+        button.action-btn {
+            padding: 10px 20px;
+            font-size: 16px;
+            font-family: Arial, sans-serif; /* Força Arial no botão */
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+            transition: transform 0.1s;
+        }
+        button.action-btn:active { transform: scale(0.95); }
+
+        .btn-limpar { background-color: #f39c12; }
+        .btn-mover { background-color: #9b59b6; /* Roxo Mágico */ }
+        .btn-parar { background-color: #c0392b; }
+
+        /* --- EFEITOS DE MÁGICA E VIDA --- */
+        
+        /* Brilho dourado pulsante */
+        @keyframes magic-glow {
+            0% { box-shadow: 0 0 10px gold; }
+            50% { box-shadow: 0 0 40px gold, 0 0 20px #ff00ff; }
+            100% { box-shadow: 0 0 10px gold; }
+        }
+
+        /* Pulo com distorção ("Squash and Stretch" - estilo desenho animado) */
+        @keyframes cartoon-jump {
+            0% { transform: scale(1, 1) translateY(0); }
+            10% { transform: scale(1.1, 0.9) translateY(0); } /* Esmaga antes de pular */
+            30% { transform: scale(0.9, 1.1) translateY(-30px); } /* Estica no ar */
+            50% { transform: scale(1, 1) translateY(0); } /* Pousa */
+            55% { transform: scale(1.1, 0.9) translateY(0); } /* Esmaga no impacto */
+            100% { transform: scale(1, 1) translateY(0); }
+        }
+
+        .magic-alive {
+            animation: cartoon-jump 1.5s infinite ease-in-out, magic-glow 2s infinite;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Virtoons: Honestícia</h1>
+    
+    <div id="game-container">
+        <img id="monster-img" src="monstro.png" alt="Honestícia">
+        
+        <canvas id="drawingCanvas"></canvas>
+        <div id="dots-layer"></div>
+    </div>
+
+    <div id="controls">
+        <div class="color-btn selected" style="background: #000;" onclick="setColor('#000')"></div>
+        <div class="color-btn" style="background: #e91e63;" onclick="setColor('#e91e63')"></div> <div class="color-btn" style="background: #3498db;" onclick="setColor('#3498db')"></div> <div class="color-btn" style="background: #f1c40f;" onclick="setColor('#f1c40f')"></div> <div class="color-btn" style="background: #9b59b6;" onclick="setColor('#9b59b6')"></div> <div style="width: 100%; height: 5px;"></div> 
+        <button class="action-btn btn-limpar" onclick="clearCanvas()">Limpar</button>
+        <button class="action-btn btn-mover" onclick="startMagic()">✨ Vida Mágica!</button>
+        <button class="action-btn btn-parar" onclick="stopMagic()">Parar</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const monsterImg = document.getElementById('monster-img');
+        
+        canvas.width = 350;
+        canvas.height = 450;
+        
+        let painting = false;
+        let currentColor = '#000';
+        let currentLineWidth = 5;
+        let currentDotIndex = 0;
+
+        // --- PONTOS DA HONESTÍCIA (Formato mais arredondado com marias-chiquinhas) ---
+        const dotsCoordinates = [
+            {x: 175, y: 50},  // 1. Topo da cabeça
+            {x: 270, y: 90},  // 2. Chiquinha Direita
+            {x: 320, y: 220}, // 3. Mão Direita (Braço aberto)
+            {x: 280, y: 380}, // 4. Base Direita (Corpo gordinho)
+            {x: 175, y: 400}, // 5. Meio das pernas
+            {x: 70, y: 380},  // 6. Base Esquerda
+            {x: 30, y: 220},  // 7. Mão Esquerda
+            {x: 80, y: 90},   // 8. Chiquinha Esquerda
+            {x: 175, y: 50}   // 9. Volta ao topo
+        ];
+
+        function initDots() {
+            const layer = document.getElementById('dots-layer');
+            layer.innerHTML = ''; 
+            dotsCoordinates.forEach((coord, index) => {
+                if (index === dotsCoordinates.length - 1) return; 
+
+                const dot = document.createElement('div');
+                dot.className = 'dot';
+                dot.innerText = index + 1;
+                dot.style.left = (coord.x - 12) + 'px'; 
+                dot.style.top = (coord.y - 12) + 'px';
+                dot.onclick = () => handleDotClick(index);
+                layer.appendChild(dot);
+            });
+        }
+
+        function handleDotClick(index) {
+            if (index === currentDotIndex) {
+                const dots = document.querySelectorAll('.dot');
+                if(dots[index]) dots[index].classList.add('active');
+                
+                if (index > 0) {
+                    drawLine(dotsCoordinates[index - 1], dotsCoordinates[index]);
+                }
+
+                currentDotIndex++;
+
+                if (currentDotIndex >= dotsCoordinates.length - 1) {
+                    drawLine(dotsCoordinates[currentDotIndex - 1], dotsCoordinates[0]);
+                    finishConnectDots();
+                }
+            }
+        }
+
+        function drawLine(start, end) {
+            ctx.beginPath();
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(end.x, end.y);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+        }
+
+        function finishConnectDots() {
+            monsterImg.style.opacity = '1'; 
+            document.getElementById('dots-layer').style.display = 'none'; 
+            
+            // Prepara para colorir
+            currentLineWidth = 20; 
+            ctx.globalCompositeOperation = 'multiply'; 
+            currentColor = '#e91e63'; // Começa com rosa para a Honestícia
+            
+            alert("Uau! A Honestícia apareceu. Vamos colorir?");
+        }
+
+        // --- PINTURA ---
+        function startPosition(e) { painting = true; draw(e); }
+        function endPosition() { painting = false; ctx.beginPath(); }
+        function draw(e) {
+            if (!painting) return;
+            e.preventDefault(); 
+            const rect = canvas.getBoundingClientRect();
+            let cx = e.touches ? e.touches[0].clientX : e.clientX;
+            let cy = e.touches ? e.touches[0].clientY : e.clientY;
+            const x = cx - rect.left;
+            const y = cy - rect.top;
+
+            ctx.lineWidth = currentLineWidth;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = currentColor;
+
+            // Transparência ao pintar
+            if (document.getElementById('dots-layer').style.display === 'none') {
+                ctx.globalAlpha = 0.4; 
+            } else {
+                ctx.globalAlpha = 1.0;
+            }
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        canvas.addEventListener('mousedown', startPosition);
+        canvas.addEventListener('mouseup', endPosition);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('touchstart', startPosition, {passive: false});
+        canvas.addEventListener('touchend', endPosition);
+        canvas.addEventListener('touchmove', draw, {passive: false});
+
+        function setColor(color) {
+            currentColor = color;
+            document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('selected'));
+            event.target.classList.add('selected');
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // --- NOVA FUNÇÃO DE MÁGICA ---
+        function startMagic() {
+            const container = document.getElementById('game-container');
+            // Remove a classe para reiniciar se clicar de novo
+            container.classList.remove('magic-alive');
+            void container.offsetWidth; 
+            
+            // Adiciona a classe que tem o brilho e o pulo
+            container.classList.add('magic-alive');
+        }
+
+        function stopMagic() {
+            const container = document.getElementById('game-container');
+            container.classList.remove('magic-alive');
+        }
+
+        initDots();
+
+    </script>
+</body>
+</html>
